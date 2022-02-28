@@ -1,10 +1,17 @@
+/*
+CSC3916 HW2
+Ngoc Phan
+File: Server.js
+Description: Web API for Movie API
+ */
+
 var express = require('express');
 var http = require('http');
 var bodyParser = require('body-parser');
 var passport = require('passport');
 var authController = require('./auth');
 var authJwtController = require('./auth_jwt');
-db = require('./db')(); //global hack
+db = require('./db')(); //hack
 var jwt = require('jsonwebtoken');
 var cors = require('cors');
 
@@ -17,16 +24,17 @@ app.use(passport.initialize());
 
 var router = express.Router();
 
-function getJSONObject(req) {
+function getJSONObjectForMovieRequirement(req) {
     var json = {
-        headers : "No Headers",
+        headers: "No headers",
         key: process.env.UNIQUE_KEY,
-        body : "No Body"
+        body: "No body"
     };
 
     if (req.body != null) {
         json.body = req.body;
     }
+
     if (req.headers != null) {
         json.headers = req.headers;
     }
@@ -34,66 +42,96 @@ function getJSONObject(req) {
     return json;
 }
 
-router.route('/post')
-    .post(authController.isAuthenticated, function (req, res) {
-            console.log(req.body);
-            res = res.status(200);
-            if (req.get('Content-Type')) {
-                console.log("Content-Type: " + req.get('Content-Type'));
-                res = res.type(req.get('Content-Type'));
-            }
-            var o = getJSONObject(req);
-            res.json(o);
-        }
-    );
+router.route('/signup')
+    .post( function(req, res) {
+        if (!req.body.username || !req.body.password) {
+            res.json({success: false, msg: 'Please include both username and password to signup.'})
+        } else {
+            var newUser = {
+                username: req.body.username,
+                password: req.body.password
+            };
 
-router.route('/postjwt')
-    .post(authJwtController.isAuthenticated, function (req, res) {
-            console.log(req.body);
-            res = res.status(200);
-            if (req.get('Content-Type')) {
-                console.log("Content-Type: " + req.get('Content-Type'));
-                res = res.type(req.get('Content-Type'));
-            }
-            res.send(req.body);
+            db.save(newUser); //no duplicate checking
+            res.json({success: true, msg: 'Successfully created new user.'})
         }
-    );
-
-router.post('/signup', function(req, res) {
-    if (!req.body.username || !req.body.password) {
-        res.json({success: false, msg: 'Please pass username and password.'});
-    } else {
-        var newUser = {
-            username: req.body.username,
-            password: req.body.password
-        };
-        // save the user
-        db.save(newUser); //no duplicate checking
-        res.json({success: true, msg: 'Successful created new user.'});
+    }).all(function (req, res){
+        res.status(405).send({success: false, msg: 'HTTP method not implemented.'})
     }
-});
+);
 
-router.post('/signin', function(req, res) {
+router.route('/signin')
+    .post(function (req, res) {
+            var user = db.findOne(req.body.username);
 
-        var user = db.findOne(req.body.username);
-
-        if (!user) {
-            res.status(401).send({success: false, msg: 'Authentication failed. User not found.'});
+            if (!user) {
+                res.status(401).send({success: false, msg: 'Authentication failed. User not found.'});
+            } else {
+                if (req.body.password === user.password) {
+                    var userToken = { id: user.id, username: user.username };
+                    var token = jwt.sign(userToken, process.env.SECRET_KEY);
+                    res.json ({success: true, token: 'JWT ' + token});
+                }
+                else {
+                    res.status(401).send({success: false, msg: 'Authentication failed.'});
+                }
+            }
         }
-        else {
-            // check if password matches
-            if (req.body.password == user.password)  {
-                var userToken = { id : user.id, username: user.username };
-                var token = jwt.sign(userToken, process.env.SECRET_KEY);
-                res.json({success: true, token: 'JWT ' + token});
-            }
-            else {
-                res.status(401).send({success: false, msg: 'Authentication failed. Wrong password.'});
-            }
-        };
-});
+    ).all(function (req, res){
+        res.status(405).send({success: false, msg: 'HTTP method not implemented.'})
+    }
+);
+
+
+
+//implement movie route
+router.route('/movies')
+    .get(authJwtController.isAuthenticated, function(req, res) {
+        console.log(req.body);
+        res = res.status(200);
+        if (req.get('Content-Type')) {
+            res = res.type(req.get('Content-Type'));
+        }
+        var o = getJSONObjectForMovieRequirement(req);
+        o.body={msg:"GET movies."}
+        res.json(o);
+
+    }).put(authJwtController.isAuthenticated, function(req, res) {
+        console.log(req.body);
+        res = res.status(200);
+        if (req.get('Content-Type')) {
+            res = res.type(req.get('Content-Type'));
+        }
+        var o = getJSONObjectForMovieRequirement(req);
+        o.body={msg:"movie updated."}
+        res.json(o);
+    }
+).delete(authController.isAuthenticated, function(req, res) {
+        console.log(req.body);
+        res = res.status(200);
+        if (req.get('Content-Type')) {
+            res = res.type(req.get('Content-Type'));
+        }
+        var o = getJSONObjectForMovieRequirement(req);
+
+        o.body={msg:"movie deleted."}
+        res.json(o);
+    }
+).post(authJwtController.isAuthenticated, function(req, res) {
+        console.log(req.body);
+        res = res.status(200);
+        if (req.get('Content-Type')) {
+            res = res.type(req.get('Content-Type'));
+        }
+        var o = getJSONObjectForMovieRequirement(req);
+        o.body={msg:"movie saved."}
+        res.json(o);
+    }
+).all(function (req, res){
+        res.status(405).send({success: false, msg: 'HTTP method not implemented.'})
+    }
+);
 
 app.use('/', router);
 app.listen(process.env.PORT || 8080);
-
-module.exports = app; // for testing
+module.exports = app; // for testing only
