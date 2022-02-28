@@ -83,7 +83,6 @@ router.route('/signin')
 );
 
 
-
 //implement movie route
 router.route('/movies')
     .get(authJwtController.isAuthenticated, function(req, res) {
